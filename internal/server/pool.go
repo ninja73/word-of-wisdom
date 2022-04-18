@@ -4,11 +4,11 @@ import (
 	"sync"
 )
 
-type bufPool struct {
+type reqPool struct {
 	pool sync.Pool
 }
 
-func (p *bufPool) get() []byte {
+func (p *reqPool) get() []byte {
 	msg := p.pool.Get()
 	if msg == nil {
 		return make([]byte, 4096)
@@ -16,6 +16,6 @@ func (p *bufPool) get() []byte {
 	return msg.([]byte)
 }
 
-func (p *bufPool) put(data []byte) {
+func (p *reqPool) put(data []byte) {
 	p.pool.Put(data)
 }

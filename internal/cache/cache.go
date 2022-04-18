@@ -1,5 +1,7 @@
 package cache
 
+import "context"
+
 type Cache interface {
-	ContainsOrAdd(val uint64) bool
+	ContainsOrAdd(ctx context.Context, val uint64) (bool, error)
 }

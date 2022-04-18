@@ -21,5 +21,5 @@ message Challenge {
   int64 counter = 2;
   uint64 signature = 3;
   int32 bit_strength = 4;
-  string uid = 5;
+  string data = 5;
 }

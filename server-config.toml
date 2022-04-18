@@ -1,0 +1,17 @@
+store-file = "./db.txt"
+
+[server]
+address = "localhost:8080"
+bit-strength = 20
+secret-key = "GLx%y@~z5mR6V3p6"
+timeout = "4s"
+expiration = "4m"
+
+[cache]
+expiration = "4m"
+
+[cache-redis]
+host = ""
+port = 1
+password = ""
+db = 0

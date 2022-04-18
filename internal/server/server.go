@@ -2,10 +2,11 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"errors"
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/zeebo/xxh3"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"net"
 	"strconv"
@@ -25,33 +26,29 @@ var (
 	challengeExistError = errors.New("challenge already exist")
 )
 
-const (
-	defaultBitStrength = 20
-	defaultTimeout     = 5 * time.Second
-)
-
 type server struct {
-	bitStrength int32
-	timeout     time.Duration
-	quoteStore  store.Store
-	mCache      cache.Cache
-	secretKey   string
-	bufPool     *bufPool
-	ttl         int64
+	quoteStore store.Store
+	powCache   cache.Cache
+	reqPool    *reqPool
+	Limiter    *rate.Limiter
+	*Options
 }
 
-func NewServer(quoteStore store.Store, mCache cache.Cache, opts ...Option) *server {
+func NewServer(quoteStore store.Store, powCache cache.Cache, opts ...*Options) *server {
 	srv := &server{
-		bitStrength: defaultBitStrength,
-		timeout:     defaultTimeout,
-		quoteStore:  quoteStore,
-		mCache:      mCache,
-		bufPool:     &bufPool{},
+		quoteStore: quoteStore,
+		powCache:   powCache,
+		reqPool:    new(reqPool),
 	}
 
-	for _, opt := range opts {
-		opt(srv)
+	if len(opts) != 0 {
+		srv.Options = opts[0]
+	} else {
+		srv.Options = &Options{}
 	}
+	srv.Limiter = rate.NewLimiter(rate.Limit(srv.Limit), int(srv.Limit+(srv.Limit*10)/100))
+
+	setDefaultWorkOptions(srv.Options)
 
 	return srv
 }
@@ -70,7 +67,7 @@ func (s *server) writeResponse(conn net.Conn, msg *dto.Msg) {
 }
 
 func (s *server) createSignature(uid string, timestamp int64) uint64 {
-	return xxh3.HashString(uid + strconv.FormatInt(int64(s.bitStrength), 10) + strconv.FormatInt(timestamp, 10) + s.secretKey)
+	return xxh3.HashString(uid + strconv.FormatInt(int64(s.BitStrength), 10) + strconv.FormatInt(timestamp, 10) + s.SecretKey)
 }
 
 func (s *server) validateChallenge(challenge *dto.Challenge) error {
@@ -79,12 +76,14 @@ func (s *server) validateChallenge(challenge *dto.Challenge) error {
 		return signatureError
 	}
 
-	now := time.Now().Unix()
-	if challenge.Timestamp+s.ttl < now {
+	now := time.Now()
+	ttl := time.Unix(challenge.Timestamp, 0).Add(s.Expiration)
+
+	if now.Before(ttl) {
 		return expiredError
 	}
 
-	hc := pow.NewHashCash(s.bitStrength, challenge.Uid, challenge.Timestamp, challenge.Signature)
+	hc := pow.NewHashCash(s.BitStrength, challenge.Uid, challenge.Timestamp, challenge.Signature)
 	if !hc.Check() {
 		return proofError
 	}
@@ -106,7 +105,16 @@ func (s *server) responseProofChallenge(conn net.Conn, data []byte) {
 		return
 	}
 
-	if ok := s.mCache.ContainsOrAdd(challenge.Signature); ok {
+	ctx := context.Background()
+
+	ok, err := s.powCache.ContainsOrAdd(ctx, challenge.Signature)
+	if err != nil {
+		log.Error(err)
+		s.responseError(conn, internalServerError)
+		return
+	}
+
+	if ok {
 		s.responseError(conn, challengeExistError)
 		return
 	}
@@ -115,13 +123,13 @@ func (s *server) responseProofChallenge(conn net.Conn, data []byte) {
 }
 
 func (s *server) responseChallenge(conn net.Conn) {
-	uid := uuid.New().String()
+	rnd := randomString(16)
 	timeout := time.Now().Unix()
-	signature := s.createSignature(uid, timeout)
+	signature := s.createSignature(rnd, timeout)
 
 	challenge := &dto.Challenge{
-		BitStrength: s.bitStrength,
-		Uid:         uid,
+		BitStrength: s.BitStrength,
+		Uid:         rnd,
 		Timestamp:   timeout,
 		Signature:   signature,
 	}
@@ -142,7 +150,14 @@ func (s *server) responseChallenge(conn net.Conn) {
 }
 
 func (s *server) responseQuote(conn net.Conn) {
-	quote := s.quoteStore.RandomQuote()
+	ctx := context.Background()
+	quote, err := s.quoteStore.RandomQuote(ctx)
+	if err != nil {
+		log.Error(err)
+		s.responseError(conn, internalServerError)
+		return
+	}
+
 	msg := &dto.Msg{
 		Type: dto.Type_RESPONSE_QUOTE,
 		Data: []byte(quote),
@@ -163,7 +178,7 @@ func (s *server) responseError(conn net.Conn, err error) {
 func (s *server) handlerConn(conn net.Conn) {
 	defer conn.Close()
 
-	if err := conn.SetDeadline(time.Now().Add(s.timeout)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(s.Timeout)); err != nil {
 		log.Error(err)
 		s.responseError(conn, internalServerError)
 		return
@@ -171,8 +186,8 @@ func (s *server) handlerConn(conn net.Conn) {
 
 	reader := bufio.NewReader(conn)
 
-	data := s.bufPool.get()
-	defer s.bufPool.put(data)
+	data := s.reqPool.get()
+	defer s.reqPool.put(data)
 
 	size, err := reader.Read(data)
 	if err != nil {
@@ -190,9 +205,13 @@ func (s *server) handlerConn(conn net.Conn) {
 
 	switch msg.Type {
 	case dto.Type_REQUEST_QUOTE:
-
+		if s.Limiter.Allow() {
+			s.responseQuote(conn)
+			return
+		}
+		s.responseChallenge(conn)
 	case dto.Type_REQUEST_CHALLENGE:
-
+		s.responseProofChallenge(conn, msg.Data)
 	default:
 		s.responseError(conn, badRequestError)
 	}

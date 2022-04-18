@@ -8,16 +8,16 @@ import (
 
 type hashCash struct {
 	BitStrength int32
-	Uid         string
+	Data        string
 	Timestamp   int64
 	Counter     int64
 	Signature   uint64
 }
 
-func NewHashCash(bitStrength int32, uid string, timestamp int64, signature uint64) *hashCash {
+func NewHashCash(bitStrength int32, data string, timestamp int64, signature uint64) *hashCash {
 	hc := &hashCash{
 		BitStrength: bitStrength,
-		Uid:         uid,
+		Data:        data,
 		Timestamp:   timestamp,
 		Signature:   signature,
 	}
@@ -30,7 +30,7 @@ func (hc hashCash) String() string {
 		"%d:%d:%s:%d:%d",
 		hc.BitStrength,
 		hc.Timestamp,
-		hc.Uid,
+		hc.Data,
 		hc.Counter,
 		hc.Signature,
 	)

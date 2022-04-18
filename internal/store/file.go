@@ -2,6 +2,7 @@ package store
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"math/rand"
 	"os"
@@ -42,7 +43,7 @@ func NewFileStore(filePath string) (*fileStore, error) {
 	return &fileStore{quotes: quotes}, nil
 }
 
-func (s *fileStore) RandomQuote() string {
+func (s *fileStore) RandomQuote(_ context.Context) (string, error) {
 	index := rand.Intn(len(s.quotes))
-	return s.quotes[index]
+	return s.quotes[index], nil
 }
