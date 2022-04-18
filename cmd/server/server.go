@@ -40,7 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	powCache := cache.NewRedisCache(rdb, cfg.Cache.Expiration.Duration)
+	powCache := cache.NewRedisCache(rdb, cfg.Server.Expiration.Duration)
 
 	srv := server.NewServer(
 		quoteStore,

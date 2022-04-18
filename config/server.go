@@ -24,13 +24,8 @@ type Redis struct {
 	PoolSize int    `toml:"pool-size"`
 }
 
-type Cache struct {
-	Expiration Duration `toml:"expiration"`
-}
-
 type ServerConfig struct {
 	StoreFile  string `toml:"store-file"`
-	Cache      Cache  `toml:"cache"`
 	Server     Server `toml:"server"`
 	CacheRedis Redis  `toml:"cache-redis"`
 }

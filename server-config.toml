@@ -8,9 +8,6 @@ timeout = "10s"
 expiration = "4m"
 rate-limit = 10
 
-[cache]
-expiration = "4m"
-
 [cache-redis]
 host = "redis"
 port = 6379
