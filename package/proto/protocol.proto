@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package protocol;
+option go_package = "./dto";
+
+enum Type {
+  REQUEST_QUOTE = 0;
+  RESPONSE_QUOTE = 1;
+  REQUEST_CHALLENGE = 2;
+  RESPONSE_CHALLENGE = 3;
+  RESPONSE_ERROR = 4;
+}
+
+message Msg {
+  Type type = 1;
+  bytes data = 2;
+}
+
+message Challenge {
+  int64 timestamp = 1;
+  int64 counter = 2;
+  uint64 signature = 3;
+  int32 bit_strength = 4;
+  string uid = 5;
+}
