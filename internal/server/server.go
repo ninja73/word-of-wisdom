@@ -46,9 +46,10 @@ func NewServer(quoteStore store.Store, powCache cache.Cache, opts ...*Options) *
 	} else {
 		srv.Options = &Options{}
 	}
-	srv.Limiter = rate.NewLimiter(rate.Limit(srv.Limit), int(srv.Limit+(srv.Limit*10)/100))
 
 	setDefaultWorkOptions(srv.Options)
+
+	srv.Limiter = rate.NewLimiter(rate.Limit(srv.Limit), int(srv.Limit+(srv.Limit*10)/100))
 
 	return srv
 }
@@ -66,12 +67,12 @@ func (s *server) writeResponse(conn net.Conn, msg *dto.Msg) {
 	}
 }
 
-func (s *server) createSignature(uid string, timestamp int64) uint64 {
-	return xxh3.HashString(uid + strconv.FormatInt(int64(s.BitStrength), 10) + strconv.FormatInt(timestamp, 10) + s.SecretKey)
+func (s *server) createSignature(bitStrength int32, data string, timestamp int64) uint64 {
+	return xxh3.HashString(data + strconv.FormatInt(int64(bitStrength), 10) + strconv.FormatInt(timestamp, 10) + s.SecretKey)
 }
 
 func (s *server) validateChallenge(challenge *dto.Challenge) error {
-	signature := s.createSignature(challenge.Uid, challenge.Timestamp)
+	signature := s.createSignature(s.BitStrength, challenge.Data, challenge.Timestamp)
 	if challenge.Signature != signature {
 		return signatureError
 	}
@@ -79,11 +80,18 @@ func (s *server) validateChallenge(challenge *dto.Challenge) error {
 	now := time.Now()
 	ttl := time.Unix(challenge.Timestamp, 0).Add(s.Expiration)
 
-	if now.Before(ttl) {
+	if now.After(ttl) {
 		return expiredError
 	}
 
-	hc := pow.NewHashCash(s.BitStrength, challenge.Uid, challenge.Timestamp, challenge.Signature)
+	hc := pow.HashCash{
+		BitStrength: s.BitStrength,
+		Data:        challenge.Data,
+		Timestamp:   challenge.Timestamp,
+		Counter:     challenge.Counter,
+		Signature:   challenge.Signature,
+	}
+
 	if !hc.Check() {
 		return proofError
 	}
@@ -125,11 +133,11 @@ func (s *server) responseProofChallenge(conn net.Conn, data []byte) {
 func (s *server) responseChallenge(conn net.Conn) {
 	rnd := randomString(16)
 	timeout := time.Now().Unix()
-	signature := s.createSignature(rnd, timeout)
+	signature := s.createSignature(s.BitStrength, rnd, timeout)
 
 	challenge := &dto.Challenge{
 		BitStrength: s.BitStrength,
-		Uid:         rnd,
+		Data:        rnd,
 		Timestamp:   timeout,
 		Signature:   signature,
 	}
@@ -184,12 +192,10 @@ func (s *server) handlerConn(conn net.Conn) {
 		return
 	}
 
-	reader := bufio.NewReader(conn)
-
 	data := s.reqPool.get()
 	defer s.reqPool.put(data)
 
-	size, err := reader.Read(data)
+	size, err := bufio.NewReader(conn).Read(data)
 	if err != nil {
 		log.Error(err)
 		s.responseError(conn, internalServerError)
@@ -209,6 +215,7 @@ func (s *server) handlerConn(conn net.Conn) {
 			s.responseQuote(conn)
 			return
 		}
+
 		s.responseChallenge(conn)
 	case dto.Type_REQUEST_CHALLENGE:
 		s.responseProofChallenge(conn, msg.Data)
@@ -222,13 +229,14 @@ func (s *server) TCPListen(address string) error {
 	if err != nil {
 		return err
 	}
-
 	defer listener.Close()
+
+	log.Infof("Server started: %s", address)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-
+			log.Error(err)
 			continue
 		}
 		go s.handlerConn(conn)

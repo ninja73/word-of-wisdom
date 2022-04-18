@@ -1,0 +1,3 @@
+server-address = "server:8080"
+timeout = "10s"
+clients = 10

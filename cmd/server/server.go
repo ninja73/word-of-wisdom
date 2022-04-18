@@ -13,21 +13,13 @@ import (
 )
 
 func main() {
-	logFilePath := flag.String("log", "./out.txt", "log file")
-	configFile := flag.String("config", "config.toml", "config file")
+	configFile := flag.String("config", "./server-config.toml", "config file")
+
 	flag.Parse()
 
-	logFile, err := os.Open(*logFilePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer logFile.Close()
+	logger.InitLogger(os.Stderr, log.InfoLevel)
 
-	if err := logger.InitLogger(logFile); err != nil {
-		log.Fatal(err)
-	}
-
-	cfg, err := config.ParseConfig(*configFile)
+	cfg, err := config.ParseServerConfig(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,7 +29,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rdb, err := redis.InitRedis(cfg.CacheRedis.Host, cfg.CacheRedis.Port, cfg.CacheRedis.Password, cfg.CacheRedis.DB)
+	rdb, err := redis.InitRedis(
+		cfg.CacheRedis.Host,
+		cfg.CacheRedis.Port,
+		cfg.CacheRedis.Password,
+		cfg.CacheRedis.DB,
+		cfg.CacheRedis.PoolSize,
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,7 +50,7 @@ func main() {
 			Timeout:     cfg.Server.Timeout.Duration,
 			SecretKey:   cfg.Server.SecretKey,
 			Expiration:  cfg.Server.Expiration.Duration,
-			Limit:       cfg.Server.Limit,
+			Limit:       cfg.Server.RateLimit,
 		},
 	)
 

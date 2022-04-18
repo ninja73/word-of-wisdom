@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  server:
+    build:
+      context: .
+      dockerfile: ./server.Dockerfile
+    depends_on:
+      - redis
+    networks:
+      - wow-tier
+    ports:
+      - "8080:8080"
+  redis:
+    image: "redis:alpine"
+    networks:
+      - wow-tier
+    ports:
+      - "6379:6379"
+  client:
+    build:
+      context: .
+      dockerfile: ./client.Dockerfile
+    depends_on:
+      - server
+    networks:
+      - wow-tier
+
+networks:
+  wow-tier:
+    driver: bridge

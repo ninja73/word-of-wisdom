@@ -13,29 +13,30 @@ type Server struct {
 	SecretKey   string   `toml:"secret-key"`
 	Timeout     Duration `toml:"timeout"`
 	Expiration  Duration `toml:"expiration"`
-	Limit       int32    `toml:"limit"`
+	RateLimit   int32    `toml:"rate-limit"`
 }
 
 type Redis struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Password string `json:"password"`
-	DB       int    `json:"db"`
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	Password string `toml:"password"`
+	DB       int    `toml:"db"`
+	PoolSize int    `toml:"pool-size"`
 }
 
 type Cache struct {
 	Expiration Duration `toml:"expiration"`
 }
 
-type Config struct {
+type ServerConfig struct {
 	StoreFile  string `toml:"store-file"`
 	Cache      Cache  `toml:"cache"`
 	Server     Server `toml:"server"`
 	CacheRedis Redis  `toml:"cache-redis"`
 }
 
-func ParseConfig(configFile string) (*Config, error) {
-	var config Config
+func ParseServerConfig(configFile string) (*ServerConfig, error) {
+	var config ServerConfig
 	_, err := toml.DecodeFile(configFile, &config)
 	if err != nil {
 		return nil, err

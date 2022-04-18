@@ -23,7 +23,7 @@ func NewFileStore(filePath string) (*fileStore, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		quote := scanner.Text()
-		if quote != "" {
+		if quote == "" {
 			continue
 		}
 
