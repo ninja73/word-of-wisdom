@@ -24,7 +24,7 @@ func NewClient(serverAddress string, timeout time.Duration) *client {
 }
 
 func (c *client) GetQuote() (string, error) {
-	return c.quote(&dto.Msg{Type: dto.Type_REQUEST_QUOTE, Data: make([]byte, 10)})
+	return c.quote(&dto.Msg{Type: dto.Type_REQUEST_QUOTE, Data: make([]byte, 1)})
 }
 
 func (c *client) quote(quoteMsg *dto.Msg) (string, error) {

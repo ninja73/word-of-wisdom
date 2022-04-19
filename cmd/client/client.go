@@ -5,7 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
-	"time"
 	"wow/config"
 	"wow/internal/client"
 	"wow/internal/logger"
@@ -30,12 +29,10 @@ func main() {
 				quote, err := cln.GetQuote()
 				if err != nil {
 					log.Error(err)
-					time.Sleep(10 * time.Millisecond)
 					continue
 				}
 
 				log.Infof("Quote: %s", quote)
-				time.Sleep(10 * time.Millisecond)
 			}
 		}()
 	}

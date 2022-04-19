@@ -2,7 +2,7 @@ store-file = "./wow-db.txt"
 
 [server]
 address = ":8080"
-bit-strength = 24
+bit-strength = 20
 secret-key = "GLx%y@~z5mR6V3p6"
 timeout = "10s"
 expiration = "4m"
